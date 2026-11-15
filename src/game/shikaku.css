@@ -1,0 +1,225 @@
+/* ════════════════════════════════════════════════════════════════
+   数方（Shikaku）—— 棋盘样式
+   ════════════════════════════════════════════════════════════════ */
+
+.shk-board {
+  --shk-boundary: #3f3a30;
+  --shk-clue: #25221d;
+  --shk-select: #1f6f5c;
+  --shk-select-hot: #2f9b7f;
+  --shk-preview-ok: #2f9b7f;
+  --shk-preview-warn: #c98a2b;
+  --shk-preview-bad: #c23b2e;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: min(74vh, 780px);
+  touch-action: none;
+  user-select: none;
+  display: block;
+  margin: 0 auto;
+  cursor: crosshair;
+}
+
+/* —— 棋盘底 —— */
+.shk-board .shk-board-bg {
+  fill: #fffdf8;
+  stroke: var(--line);
+  stroke-width: 2;
+  filter: drop-shadow(0 8px 22px rgba(40, 30, 10, 0.1));
+}
+
+/* —— 矩形填色 —— */
+.shk-board .shk-rect {
+  stroke: none;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.shk-board .shk-rect-area,
+.shk-board .shk-rect-noClue,
+.shk-board .shk-rect-multiClue,
+.shk-board .shk-rect-outside {
+  opacity: 0.55;
+}
+
+.shk-board .shk-rect-tag {
+  fill: var(--error);
+  font-family: var(--font);
+  font-weight: 700;
+  text-anchor: middle;
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+/* —— 网格 —— */
+.shk-board .shk-grid {
+  stroke: #e3dccd;
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+/* —— 矩形粗边界 —— */
+.shk-board .shk-boundaries {
+  pointer-events: none;
+}
+
+.shk-board .shk-boundary {
+  stroke: var(--shk-boundary);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  opacity: 0.82;
+}
+
+/* —— 数字 —— */
+.shk-board .shk-clue {
+  fill: var(--shk-clue);
+  font-family: var(--font);
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: rgba(255, 253, 248, 0.9);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.shk-board .shk-clue.bad {
+  fill: var(--error);
+  stroke: rgba(240, 215, 211, 0.95);
+}
+
+/* —— 错误高亮 —— */
+.shk-board .shk-rect-error {
+  fill: none;
+  stroke: var(--error);
+  stroke-width: 2.6;
+  stroke-dasharray: 6 4;
+  pointer-events: none;
+}
+
+.shk-board .shk-bad-cell {
+  fill: rgba(194, 59, 46, 0.16);
+  stroke: rgba(194, 59, 46, 0.5);
+  stroke-width: 1.2;
+  pointer-events: none;
+}
+
+.shk-board .shk-overlap-cell {
+  pointer-events: none;
+  stroke: rgba(194, 59, 46, 0.5);
+  stroke-width: 1;
+}
+
+/* —— 选中格 —— */
+.shk-board .shk-cursor {
+  pointer-events: none;
+}
+
+.shk-board .shk-cursor-ring {
+  fill: rgba(47, 155, 127, 0.08);
+  stroke: var(--shk-select-hot);
+  stroke-width: 2.6;
+  stroke-dasharray: 5 3;
+}
+
+.shk-board .shk-cursor-dot {
+  fill: var(--shk-select);
+  opacity: 0.55;
+}
+
+/* —— 拖拽预览 —— */
+.shk-board .shk-preview-layer {
+  pointer-events: none;
+}
+
+.shk-board .shk-preview-fill.ok {
+  fill: rgba(47, 155, 127, 0.16);
+}
+
+.shk-board .shk-preview-fill.warn {
+  fill: rgba(201, 138, 43, 0.14);
+}
+
+.shk-board .shk-preview-fill.bad {
+  fill: rgba(194, 59, 46, 0.14);
+}
+
+.shk-board .shk-preview-ring {
+  fill: none;
+  stroke-width: 2.6;
+  stroke-dasharray: 7 4;
+}
+
+.shk-board .shk-preview-ring.ok {
+  stroke: var(--shk-preview-ok);
+}
+
+.shk-board .shk-preview-ring.warn {
+  stroke: var(--shk-preview-warn);
+}
+
+.shk-board .shk-preview-ring.bad {
+  stroke: var(--shk-preview-bad);
+}
+
+.shk-board .shk-preview-area {
+  fill: var(--ink-soft);
+  font-family: var(--font);
+  font-weight: 700;
+  text-anchor: end;
+  pointer-events: none;
+}
+
+.shk-board .shk-preview-area.ok {
+  fill: var(--shk-preview-ok);
+}
+
+.shk-board .shk-preview-area.warn {
+  fill: var(--shk-preview-warn);
+}
+
+.shk-board .shk-preview-area.bad {
+  fill: var(--shk-preview-bad);
+}
+
+/* —— 落子 / 删除特效 —— */
+.shk-board .shk-flash {
+  pointer-events: none;
+  animation: shkFlash 0.55s ease-out forwards;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.shk-board .shk-flash-add rect {
+  fill: rgba(47, 155, 127, 0.28);
+  stroke: var(--shk-preview-ok);
+  stroke-width: 2;
+}
+
+.shk-board .shk-flash-remove rect {
+  fill: rgba(194, 59, 46, 0.22);
+  stroke: var(--shk-preview-bad);
+  stroke-width: 2;
+}
+
+@keyframes shkFlash {
+  0% {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+/* 数方棋盘不需要 grab 光标（左键是画矩形，中键才是平移） */
+#board {
+  cursor: default;
+}
