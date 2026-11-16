@@ -135,7 +135,7 @@ export function inBounds(rect: Rect, width: number, height: number): boolean {
 /**
  * 把矩形几何编码进 Move.from / Move.to（0 保留给「空」）。
  * 打包方式：((y*width + x) << 12) | (h << 6) | w，再 +1。
- * 支持 width/height ≤ 40、w/h ≤ 63，足够覆盖自定义题板的 20×20 上限。
+ * 支持 width/height ≤ 40、w/h ≤ 63，足够覆盖自定义题板的 30×30 上限。
  */
 export function rectCode(rect: Rect, width: number): number {
   return 1 + (((rect.y * width + rect.x) << 12) | (rect.h << 6) | rect.w)

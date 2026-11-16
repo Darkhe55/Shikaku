@@ -57,8 +57,8 @@ const meta = {
   customIdPrefix: 'shikaku-custom-',
   customMinW: 3,
   customMinH: 3,
-  customMaxW: 20,
-  customMaxH: 20,
+  customMaxW: 30,
+  customMaxH: 30,
   targetKind: 'cell' as const,
   interactionHint: '<kbd>左键拖拽</kbd> 画矩形 · <kbd>右键</kbd> 删除 · <kbd>单击</kbd> 选中/取消',
   legendLines: [
@@ -72,7 +72,7 @@ const meta = {
 
 /* ────────────────────────── 自定义题板 ────────────────────────── */
 
-const MAX_CUSTOM_VALUE = 20
+const MAX_CUSTOM_VALUE = 30
 
 const VALUE_CYCLE: Array<number | null> = [
   null,
@@ -109,7 +109,7 @@ const custom: CustomSupport = {
   cellLabel: (v) => (v == null ? '' : String(v)),
 
   hint:
-    '点击格子循环 空→1…20；键盘直接按 1–9，0.7 秒内继续按数字可输入 10–20（如 1、2 → 12）；方向键移动、. / 退格清空。保存时会自动检查是否恰好一解。',
+    '点击格子循环 空→1…30；键盘直接按 1–9，0.7 秒内继续按数字可输入 10–30（如 1、2 → 12、3、0 → 30）；方向键移动、. / 退格清空。宽高各 3–30（支持非正方形）。保存时会自动检查是否恰好一解。',
 
   toGrid: (p) => {
     const sp = asShikakuPuzzle(p)
