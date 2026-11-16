@@ -9,6 +9,7 @@
  */
 
 import { RAW_PUZZLES } from './puzzles-data'
+import { IMPORTED_PUZZLES } from './imported-puzzles'
 import {
   clueCountOf,
   decodeClues,
@@ -23,7 +24,8 @@ import { stateFromRects } from './state'
 export const builtinPuzzles: ShikakuPuzzle[] = []
 const solutions = new Map<string, Rect[]>()
 
-for (const raw of RAW_PUZZLES) {
+// 内置题 + 图片识别导入题（imported-puzzles.ts 由 scripts/import-image.mjs --append 写入）
+for (const raw of [...RAW_PUZZLES, ...IMPORTED_PUZZLES]) {
   const size = raw.width * raw.height
   const givens = decodeClues(raw.board, size)
   if (!givens) {

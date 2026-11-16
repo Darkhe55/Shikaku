@@ -158,8 +158,16 @@ export function decodeRectCode(code: number, width: number, height: number): Rec
 
 const BASE36 = '0123456789abcdefghijklmnopqrstuvwxyz'
 
-/** 每格一个 base36 字符；0 = 无数字，1–35 = 数字 */
+/** 每格一个 base36 字符；0 = 无数字，1–35 = 数字。
+ *  导入的大盘面可能出现 >35 的数字（图片识别导入），此时改用逗号分隔的十进制编码。 */
 export function encodeClues(givens: ArrayLike<number>): string {
+  const wide = Array.from({ length: givens.length }, (_, i) => givens[i]! | 0).some((v) => v >= BASE36.length)
+  if (wide) {
+    return Array.from({ length: givens.length }, (_, i) => {
+      const v = givens[i]! | 0
+      return v > 0 ? String(v) : '0'
+    }).join(',')
+  }
   let out = ''
   for (let i = 0; i < givens.length; i++) {
     const v = givens[i]! | 0
@@ -170,7 +178,22 @@ export function encodeClues(givens: ArrayLike<number>): string {
 }
 
 export function decodeClues(text: unknown, expected: number): number[] | null {
-  if (typeof text !== 'string' || text.length !== expected) return null
+  if (typeof text !== 'string') return null
+  // 逗号分隔的十进制格式（图片识别导入的大数字用；`0`/`.`/`-`/`?` 表示无数字）
+  if (text.includes(',')) {
+    const parts = text.split(',')
+    if (parts.length !== expected) return null
+    const out = new Array<number>(expected).fill(0)
+    for (let i = 0; i < expected; i++) {
+      const s = parts[i]!.trim()
+      if (s === '' || s === '.' || s === '-' || s === '?') continue
+      const v = Number(s)
+      if (!Number.isInteger(v) || v < 0) return null
+      out[i] = v
+    }
+    return out
+  }
+  if (text.length !== expected) return null
   const out = new Array<number>(expected).fill(0)
   for (let i = 0; i < expected; i++) {
     const ch = text[i]!.toLowerCase()

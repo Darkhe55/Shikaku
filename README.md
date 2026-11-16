@@ -70,6 +70,27 @@ npm run ui-check  # 浏览器冒烟测试（需先启动 dev server，Playwright
 
 `npm run ui-check` 默认使用 Edge 路径 `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`，可用环境变量 `EDGE_PATH` 覆盖。
 
+## 图片导入题库（识图 CLI）
+
+```bash
+npm run import-image -- month.png                # 识别并预览（不写入）
+npm run import-image -- month.png --verify       # 额外求解 / 唯一性检查（大盘面会超时警告）
+npm run import-image -- month.png --append       # 写入 src/game/imported-puzzles.ts
+npm run import-image -- month.png --json out.json  # 导出识别结果
+```
+
+- 全自动识图：Playwright + 本机 Edge 取像素 → 网格交点大圆点定位格子与外框 →
+  每格中心附近的深色数字（1–3 位）连通域提取（相邻数字粘连时按列墨迹自动切开）→
+  字形聚类 + 多字体多字号模板匹配判读。
+- 结构校验：数方的天然不变量「所有数字之和 = 格子总数」必须成立；不成立时拒绝写入，
+  可用 `--map 簇号=数字` 覆盖字形簇判读或 `--fix "列,行=数字"` 修正个别格子。
+- 导入题写入 `src/game/imported-puzzles.ts`，`npm run gen` 不会覆盖；游戏启动时会与内置题一起加载。
+- 编码：沿用题库的 base36 单字符格式；出现 >35 的数字（真实大盘面常见）时自动改用
+  逗号分隔的十进制格式（`src/game/types.ts` 的 `decodeClues` 两种都支持），
+  所以 40×50、最大数字 204 这类题也能载入。
+- 限制：`--verify` 对 40×50 大盘面通常会超时（只警告）；未带参考解时「显示解 / 提示一格」
+  依赖求解器现场计算，大盘面可能很慢。
+
 ## 项目结构
 
 ```
@@ -103,3 +124,4 @@ scripts/
 - **求解器**：先为每个数字枚举「面积 = 数字且只含该数字」的候选矩形，再用 MRV（剩余候选最少的未覆盖格）+ 精确覆盖回溯；内置题与自定义题的唯一解检查都用它；
 - **渲染**：矩形填色 + 粗边界 + 数字 + 错误高亮；拖拽预览直接更新 SVG 覆盖层，不整盘重绘，指针捕获不会中断；
 - **题库生成**：随机矩形切分 → 每个矩形随机放一个数字 → 唯一解计数 = 1 → 逻辑推演必须饱和，才收进题库（`npm run gen` 可复现）。
+
