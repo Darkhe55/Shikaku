@@ -27,6 +27,7 @@ import {
   clueCountOf,
   inBounds,
   rectCells,
+  sameRect,
   type Rect,
   type ShikakuPuzzle,
   type ShikakuState,
@@ -232,6 +233,11 @@ interface SearchOptions {
   limit: number
   /** 搜索节点上限 */
   maxNodes: number
+  /**
+   * 盘面上已经放好的矩形（玩家的当前放置 / 逻辑规则已推出的结论）。
+   * 搜索会先把它们当作固定条件放下，从当前盘面继续补完，而不是从空盘重解。
+   */
+  fixed?: readonly Rect[]
 }
 
 interface SearchOutcome {
@@ -308,6 +314,30 @@ export function searchSolutions(puzzle: Puzzle, options: SearchOptions): SearchO
   }
 
   const propagate = (): boolean => propagateCandidates(p, index, alive, covered, { place, kill })
+
+  /* —— 从当前盘面继续：把已有矩形（玩家放置 / 已推出的结论）先固定下来 —— */
+  let seedOk = true
+  if (options.fixed && options.fixed.length > 0) {
+    for (const rect of options.fixed) {
+      const candId = candidates.findIndex((c) => sameRect(c.rect, rect))
+      if (candId < 0 || !alive[candId]) {
+        seedOk = false
+        break
+      }
+      const cand = candidates[candId]!
+      for (const c of cand.cells) {
+        if (covered[c]) {
+          seedOk = false
+          break
+        }
+      }
+      if (!seedOk) break
+      place(candId)
+    }
+  }
+  if (!seedOk) {
+    return { solutions: [], nodes: 0, timedOut: false, propagations: 0, killed: 0 }
+  }
 
   const dfs = (): void => {
     if (timedOut || solutions.length >= options.limit) return

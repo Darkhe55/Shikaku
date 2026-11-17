@@ -7,14 +7,16 @@
  *   R3 候选排除         隐藏单值：某格只能由同一数字覆盖 / 某数字的所有候选都含同一格，
  *                       据此排除不兼容的候选（只缩候选集，不产生回放帧）；
  *   R4 反证             假设某候选矩形成立后，R1–R3 立刻推出矛盾 → 排除它（不产生帧）；
- *   R5 回溯补完         规则推不满（例如用户自制的难题）时用回溯求解补完并标注「回溯试探」。
+ *   R5 回溯补完         规则推不满（例如用户自制的难题）时用回溯求解补完并标注「回溯试探」；
+ *                       补完时把当前盘面已有的矩形（玩家放置 + R1–R4 已推出的）作为固定条件，
+ *                       从当前盘面继续，而不是拿空盘的另一组解来拼。
  */
 
 import type { GameState, LogicPlan, PlaybackFrame, Puzzle } from '../core/types'
 import {
   buildCandidates,
-  findSolution,
   propagateCandidates,
+  searchSolutions,
   type CandidateIndex,
   type CandidateOps,
 } from './solver.ts'
@@ -235,10 +237,13 @@ export function planLogicSolve(puzzle: Puzzle, initialState: GameState): LogicPl
   /* —— 4. 推不满时用回溯补完，保证「逻辑解题」最终能给出完整盘面 —— */
 
   if (!contradiction && !allCovered(covered)) {
-    const found = findSolution(p, 600_000)
+    // 从当前盘面继续：把玩家已放的矩形 + 规则已推出的矩形都作为固定条件再补完，
+    // 不能拿「空盘的第一组解」来拼（那会与玩家已有的正确放置冲突或留下空洞）。
+    const found = searchSolutions(p, { limit: 1, maxNodes: 600_000, fixed: placedRects })
     stats.searchNodes = found.nodes
-    if (found.solution) {
-      for (const rect of found.solution) {
+    const solution = found.solutions[0]
+    if (solution) {
+      for (const rect of solution) {
         if (placedRects.some((r) => sameRect(r, rect))) continue
         // 已放矩形占用的格子不再覆盖（正常情况不会发生，容错跳过）
         let overlaps = false
