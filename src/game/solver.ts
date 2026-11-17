@@ -1,14 +1,23 @@
 /**
- * 数方 —— 候选矩形枚举 + 回溯求解
+ * 数方 —— 候选矩形枚举 + 覆盖传播 + 回溯求解
  *
  * 核心事实：每个格子的归属只有一种可能——它所在的矩形必须包含某个数字，
- * 面积等于该数字。所以我们先为每个数字枚举出「面积 = 数字、只含这一个数字」
+ * 面积等于那个数字。所以我们先为每个数字枚举出「面积 = 数字、只含这一个数字」
  * 的所有候选矩形；求解就是从某个未覆盖格子出发，尝试覆盖它的候选矩形。
+ *
+ * 候选传播（都是可证明的局部推理，不猜）：
+ *   R1 数字格唯一候选     某个数字只剩一个候选矩形 → 它必在解中；
+ *   R2 覆盖传播           某个未覆盖格只剩一种候选矩形能覆盖 → 它必在解中；
+ *   R3 候选排除（隐藏单值）两条等价约束：
+ *        a) 某未覆盖格的所有候选都属于同一个数字 → 该数字必须覆盖这一格，
+ *           于是这个数字「不含这一格」的候选全被排除；
+ *        b) 某数字的全部候选都覆盖同一格 → 别的数字不能再用这一格，
+ *           于是别的数字「含这一格」的候选全被排除。
  *
  * 剪枝：
  *   - 候选矩形面积固定，天然满足面积约束；
  *   - 一旦放下矩形，所有与它相交的候选矩形立即失效；
- *   - 每次选择「剩余候选最少」的未覆盖格子（MRV），失败立刻回溯。
+ *   - 搜索前先做候选传播，再按 MRV（剩余候选最少的未覆盖格 / 数字）分支。
  */
 
 import type { Puzzle, SolveResult } from '../core/types'
@@ -88,7 +97,7 @@ export function buildCandidates(puzzle: Puzzle): CandidateIndex {
           if (clues !== 1) continue
           const id = candidates.length
           candidates.push({ id, clue: cell, rect, cells, area })
-          clueCands[cell].push(id)
+          clueCands[cell]!.push(id)
           for (const c of cells) cellCands[c]!.push(id)
         }
       }
@@ -96,6 +105,124 @@ export function buildCandidates(puzzle: Puzzle): CandidateIndex {
   }
 
   return { candidates, cellCands, clueCands }
+}
+
+/* ────────────────────────── 候选传播 ────────────────────────── */
+
+/** 传播时对候选集的操作（由调用方维护「已放矩形 / 失效候选」的账本） */
+export interface CandidateOps {
+  /** 放下一个候选矩形（kind 标明命中的是 R1 还是 R2） */
+  place(candId: number, kind?: 'clue' | 'cell'): void
+  /** 排除一个候选矩形（不放下） */
+  kill(candId: number): void
+}
+
+/**
+ * 候选传播：在 alive / covered 上反复执行 R1–R3，直到不动点。
+ * @returns false 表示推出矛盾
+ */
+export function propagateCandidates(
+  p: ShikakuPuzzle,
+  index: CandidateIndex,
+  alive: Uint8Array,
+  covered: Uint8Array,
+  ops: CandidateOps,
+): boolean {
+  const { candidates, cellCands, clueCands } = index
+  const w = p.width
+  const size = w * p.height
+  const covers = (candId: number, cell: number): boolean =>
+    candidates[candId]!.cells.indexOf(cell) >= 0
+
+  let changed = true
+  while (changed) {
+    changed = false
+
+    // R1：每个未覆盖数字只剩一个候选矩形
+    for (let clue = 0; clue < size; clue++) {
+      if (clueAt(p, clue) <= 0 || covered[clue]) continue
+      let found = -1
+      let count = 0
+      for (const cid of clueCands[clue]!) {
+        if (!alive[cid]) continue
+        count++
+        found = cid
+        if (count > 1) break
+      }
+      if (count === 0) return false
+      if (count === 1) {
+        ops.place(found, 'clue')
+        changed = true
+      }
+    }
+
+    // R2：每个未覆盖格只剩一个能覆盖它的候选矩形
+    for (let cell = 0; cell < size; cell++) {
+      if (covered[cell]) continue
+      let found = -1
+      let count = 0
+      for (const cid of cellCands[cell]!) {
+        if (!alive[cid]) continue
+        count++
+        found = cid
+        if (count > 1) break
+      }
+      if (count === 0) return false
+      if (count === 1) {
+        ops.place(found, 'cell')
+        changed = true
+      }
+    }
+
+    // R3a：某未覆盖格只能由同一个数字的候选覆盖 → 该数字的矩形必须覆盖它
+    for (let cell = 0; cell < size; cell++) {
+      if (covered[cell]) continue
+      let clue = -1
+      let multiple = false
+      let any = false
+      for (const cid of cellCands[cell]!) {
+        if (!alive[cid]) continue
+        any = true
+        const c = candidates[cid]!.clue
+        if (clue < 0) clue = c
+        else if (clue !== c) {
+          multiple = true
+          break
+        }
+      }
+      if (!any) return false
+      if (multiple || clue < 0) continue
+      for (const cid of clueCands[clue]!) {
+        if (!alive[cid] || covers(cid, cell)) continue
+        ops.kill(cid)
+        changed = true
+      }
+    }
+
+    // R3b：某数字的全部候选都覆盖同一格 → 别的数字不能再用这一格
+    for (let clue = 0; clue < size; clue++) {
+      if (clueAt(p, clue) <= 0 || covered[clue]) continue
+      const ids: number[] = []
+      for (const cid of clueCands[clue]!) if (alive[cid]) ids.push(cid)
+      if (ids.length <= 1) continue
+      let common = candidates[ids[0]!]!.cells.slice()
+      for (let q = 1; q < ids.length && common.length; q++) {
+        const cells = candidates[ids[q]!]!.cells
+        common = common.filter((c) => cells.indexOf(c) >= 0)
+      }
+      for (const cell of common) {
+        if (covered[cell]) return false // 该数字必须覆盖这一格，但它已被别的矩形占用
+        for (const cid of cellCands[cell]!) {
+          if (!alive[cid]) continue
+          if (candidates[cid]!.clue === clue) continue
+          ops.kill(cid)
+          changed = true
+        }
+      }
+    }
+  }
+
+  return true
 }
 
 /* ────────────────────────── 回溯搜索 ────────────────────────── */
@@ -111,59 +238,76 @@ interface SearchOutcome {
   solutions: Rect[][]
   nodes: number
   timedOut: boolean
+  /** 候选传播放下的矩形次数（诊断） */
+  propagations: number
+  /** 候选排除次数（诊断） */
+  killed: number
 }
+
+type TrailOp =
+  | { placed: number; killed: number[] }
+  | { killed: number[]; placed?: undefined }
 
 /**
  * 用候选矩形做精确覆盖搜索。
- * 复杂度靠「候选面积固定 + MRV」压住，正常 20×20 以内可用。
+ * 每个节点先做候选传播（R1–R3），再对「候选最少的未覆盖格 / 数字」分支。
  */
 export function searchSolutions(puzzle: Puzzle, options: SearchOptions): SearchOutcome {
   const p = asShikakuPuzzle(puzzle)
   const w = p.width
   const h = p.height
   const size = w * h
-  const { candidates, cellCands } = buildCandidates(p)
+  const index = buildCandidates(p)
+  const { candidates, cellCands, clueCands } = index
 
   const solutions: Rect[][] = []
-  const placed: Rect[] = []
-  const placedCandidateIds: number[] = []
+  const placed: number[] = []
   const covered = new Uint8Array(size)
   const alive = new Uint8Array(candidates.length).fill(1)
-  // 「被放下的矩形覆盖掉的候选」的记录栈，用于回溯恢复
-  const killStack: number[][] = []
+  const trail: TrailOp[] = []
   let nodes = 0
   let timedOut = false
-
-  const findUncovered = (): number => {
-    for (let i = 0; i < size; i++) if (covered[i] === 0) return i
-    return -1
-  }
+  let propagations = 0
+  let killed = 0
 
   /** 放下一个候选：覆盖格子，并杀掉所有与它相交的候选 */
-  const place = (candId: number): void => {
+  const place = (candId: number, _kind?: 'clue' | 'cell'): void => {
     const cand = candidates[candId]!
     for (const c of cand.cells) covered[c] = 1
-    const killed: number[] = []
+    const removed: number[] = []
     for (const c of cand.cells) {
       for (const other of cellCands[c]!) {
         if (alive[other]) {
           alive[other] = 0
-          killed.push(other)
+          removed.push(other)
         }
       }
     }
-    killStack.push(killed)
-    placed.push(cand.rect)
-    placedCandidateIds.push(candId)
+    placed.push(candId)
+    trail.push({ placed: candId, killed: removed })
+    propagations++
   }
 
-  const unplace = (): void => {
-    const cand = candidates[placedCandidateIds.pop()!]!
-    placed.pop()
-    for (const c of cand.cells) covered[c] = 0
-    const killed = killStack.pop()!
-    for (const id of killed) alive[id] = 1
+  const kill = (candId: number): void => {
+    if (!alive[candId]) return
+    alive[candId] = 0
+    trail.push({ killed: [candId] })
+    killed++
   }
+
+  const undoTo = (mark: number): void => {
+    while (trail.length > mark) {
+      const op = trail.pop()!
+      if (op.placed !== undefined) {
+        const cand = candidates[op.placed]!
+        for (const c of cand.cells) covered[c] = 0
+        placed.pop()
+      }
+      for (const id of op.killed) alive[id] = 1
+    }
+  }
+
+  const propagate = (): boolean => propagateCandidates(p, index, alive, covered, { place, kill })
 
   const dfs = (): void => {
     if (timedOut || solutions.length >= options.limit) return
@@ -172,49 +316,65 @@ export function searchSolutions(puzzle: Puzzle, options: SearchOptions): SearchO
       timedOut = true
       return
     }
+    if (!propagate()) return
 
-    const first = findUncovered()
-    if (first < 0) {
-      solutions.push(placed.map((r) => ({ ...r })))
+    // MRV：在未覆盖格与未覆盖数字里挑「可用候选最少」的一条分支
+    let bestCell = -1
+    let bestCellCount = Number.POSITIVE_INFINITY
+    for (let cell = 0; cell < size; cell++) {
+      if (covered[cell]) continue
+      let count = 0
+      for (const cid of cellCands[cell]!) {
+        if (!alive[cid]) continue
+        count++
+        if (count >= bestCellCount) break
+      }
+      if (count === 0) return
+      if (count < bestCellCount) {
+        bestCellCount = count
+        bestCell = cell
+      }
+    }
+    if (bestCell < 0) {
+      solutions.push(placed.map((id) => ({ ...candidates[id]!.rect })))
       return
     }
 
-    // MRV：在所有未覆盖格里挑候选最少的
-    let bestList: number[] | null = null
-    let bestCount = Number.POSITIVE_INFINITY
-    for (let cell = first; cell < size; cell++) {
-      if (covered[cell]) continue
+    let bestClue = -1
+    let bestClueCount = Number.POSITIVE_INFINITY
+    for (let clue = 0; clue < size; clue++) {
+      if (clueAt(p, clue) <= 0 || covered[clue]) continue
       let count = 0
-      let list: number[] | null = null
-      for (const candId of cellCands[cell]!) {
-        if (!alive[candId]) continue
+      for (const cid of clueCands[clue]!) {
+        if (!alive[cid]) continue
         count++
-        if (count >= bestCount) break
-        if (!list) list = []
-        list.push(candId)
+        if (count >= bestClueCount) break
       }
-      if (count === 0) return // 死路
-      if (count < bestCount) {
-        bestCount = count
-        bestList = list ?? []
-        if (count === 1) break
+      if (count === 0) return
+      if (count < bestClueCount) {
+        bestClueCount = count
+        bestClue = clue
       }
     }
 
-    if (!bestList || bestList.length === 0) return
+    const useClue = bestClue >= 0 && bestClueCount < bestCellCount
+    const list: number[] = []
+    for (const cid of useClue ? clueCands[bestClue]! : cellCands[bestCell]!) {
+      if (alive[cid]) list.push(cid)
+    }
+    if (!list.length) return
 
-    for (const candId of bestList) {
+    const mark = trail.length
+    for (const candId of list) {
       if (timedOut || solutions.length >= options.limit) return
-      const pos = placed.length
       place(candId)
       dfs()
-      while (placed.length > pos) unplace()
-      if (timedOut) return
+      undoTo(mark)
     }
   }
 
   dfs()
-  return { solutions, nodes, timedOut }
+  return { solutions, nodes, timedOut, propagations, killed }
 }
 
 /** 统计解的个数（最多到 limit 就停） */

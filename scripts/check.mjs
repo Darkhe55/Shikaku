@@ -137,9 +137,15 @@ for (const raw of RAW_PUZZLES) {
     continue
   }
 
+  const st = plan.stats ?? {}
+  const byRule = {}
+  for (const f of plan.frames) byRule[f.rule] = (byRule[f.rule] ?? 0) + 1
+  const ruleText = Object.entries(byRule).map(([k, v]) => `R${k}:${v}`).join(' ') || '-'
   console.log(
     `[check] ✓ ${id} ${raw.width}×${raw.height} · 数字 ${clues} · 矩形 ${rects.length} · ` +
-      `解唯一 · 逻辑可推满（${plan.frames.length} 帧，${plan.ruleSteps} 规则步，${counted.nodes} 节点）`,
+      `解唯一 · 逻辑可推满（${plan.frames.length} 帧，${plan.ruleSteps} 规则步，${counted.nodes} 节点）` +
+      `（${ruleText}；反证 ${st.probes ?? 0} 次 / 排除 ${st.eliminated ?? 0} 个 / ` +
+      `隐藏排除 ${st.hiddenKills ?? 0} 个 / 回溯 ${st.searchNodes ?? 0} 节点）`,
   )
 }
 
